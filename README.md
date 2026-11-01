@@ -93,6 +93,7 @@ Incubyte_Project/
 ├── pyproject.toml                  # Python package configuration & test dependencies
 ├── README.md                       # Comprehensive project documentation
 ├── docs/
+│   ├── ARCHITECTURE_DECISIONS_AND_DATA_STRATEGY.md # Comprehensive ADR, warehouse trade-offs, and anomaly resolution
 │   ├── SYSTEM_DESIGN.md            # Billions-scale architectural design & trade-offs
 │   ├── DATA_DICTIONARY.md          # Schema specifications & data anomaly analysis
 │   └── RUNBOOK.md                  # Step-by-step interview guide for live demonstration
@@ -130,3 +131,4 @@ Following Incubyte's emphasis on software craftsmanship and incremental design, 
 * `feat(quality)`: Data quality engine with key uniqueness and dead-letter quarantine.
 * `feat(pipeline)`: End-to-end pipeline orchestrator with DuckDB analytical queries.
 * `feat(demo)`: Interactive live demonstration CLI runner (`demo.py`) and interview runbook.
+

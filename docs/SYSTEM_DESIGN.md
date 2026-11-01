@@ -174,3 +174,4 @@ A high-volume pipeline must never fail completely because of a few corrupt recor
 * **Expected Volume**: $1\text{ Billion rows/day} \approx 11,500\text{ records/sec}$ steady-state or $250\text{M rows/hour}$ batch peak.
 * **Storage Optimization**: Columnar compression (Parquet / Snowflake micro-partitions) yields 70-80% storage compression.
 * **Cost Efficiency**: Auto-suspending warehouses (Large/X-Large) run for ~25-35 minutes per batch load, minimizing idle compute spend.
+
