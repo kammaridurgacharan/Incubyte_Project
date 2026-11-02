@@ -1,6 +1,7 @@
 """Country routing and 'Latest Record Wins' cross-table relocation manager."""
 
 from datetime import date
+import re
 from typing import Dict, List, Optional, Tuple
 from src.skypoints.config import COUNTRY_TABLE_MAPPING
 from src.skypoints.models import StagingMemberRecord
@@ -15,14 +16,24 @@ class CountryRouter:
         # member_id -> (current_table_name, last_flight_date)
         self.member_locations: Dict[str, Tuple[str, Optional[date]]] = {}
 
+    def reset(self) -> None:
+        """Clears all router table states for clean batch reruns."""
+        self.tables.clear()
+        self.member_locations.clear()
+
     def get_table_name(self, record: StagingMemberRecord) -> str:
-        """Determines the target country table name for a record."""
-        code_upper = record.country_code.strip().upper()
+        """Determines sanitized target country table name for a record."""
+        code_upper = (record.country_code or "UNKNOWN").strip().upper()
         if code_upper in COUNTRY_TABLE_MAPPING:
-            return COUNTRY_TABLE_MAPPING[code_upper]
-        if record.standardized_country and record.standardized_country != "UNKNOWN":
-            return f"Table_{record.standardized_country}"
-        return "Table_Unknown"
+            raw_name = COUNTRY_TABLE_MAPPING[code_upper]
+        elif record.standardized_country and record.standardized_country != "UNKNOWN":
+            raw_name = f"Table_{record.standardized_country}"
+        else:
+            raw_name = "Table_Unknown"
+
+        # Sanitize against SQL injection / illegal table identifier characters
+        sanitized = re.sub(r"[^A-Za-z0-9_]", "", raw_name)
+        return sanitized or "Table_Unknown"
 
     def deduplicate_batch(self, records: List[StagingMemberRecord]) -> List[StagingMemberRecord]:
         """Within-batch deduplication: keeps the latest flight date or latest processed timestamp."""
@@ -58,7 +69,6 @@ class CountryRouter:
             if mid in self.member_locations:
                 prev_table, prev_flight_date = self.member_locations[mid]
 
-                # Check if incoming record is strictly newer or equal
                 incoming_time = new_flight_date or date.min
                 existing_time = prev_flight_date or date.min
 

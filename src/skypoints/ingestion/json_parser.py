@@ -3,6 +3,7 @@
 from datetime import datetime, date
 import json
 from typing import Any, Dict, List, Tuple
+from src.skypoints.config import VALID_REDEMPTION_STATUSES
 from src.skypoints.models import FlattenedRedemptionRecord, QuarantineRecord
 
 
@@ -19,7 +20,7 @@ class JsonRedemptionParser:
         return self.parse_text(content)
 
     def parse_text(self, content: str) -> Tuple[List[FlattenedRedemptionRecord], List[QuarantineRecord]]:
-        """Parses JSON text into flattened redemption records."""
+        """Parses JSON text into flattened redemption records with integrity checks."""
         try:
             raw_data = json.loads(content)
         except Exception as e:
@@ -32,7 +33,6 @@ class JsonRedemptionParser:
                 )
             ]
 
-        # Normalize to list of member payloads
         member_payloads: List[Dict[str, Any]] = raw_data if isinstance(raw_data, list) else [raw_data]
 
         records: List[FlattenedRedemptionRecord] = []
@@ -86,7 +86,7 @@ class JsonRedemptionParser:
                 txn_date_str = txn.get("txn_date")
                 partner = txn.get("partner")
                 miles = txn.get("miles_redeemed")
-                status = txn.get("status", "COMPLETED")
+                status = str(txn.get("status", "COMPLETED")).upper()
 
                 if not txn_id or not txn_date_str or not partner or miles is None:
                     errors.append(
@@ -113,15 +113,40 @@ class JsonRedemptionParser:
                     )
                     continue
 
+                # Validate miles is non-negative
+                if miles_int < 0:
+                    errors.append(
+                        QuarantineRecord(
+                            source_line_num=idx,
+                            raw_payload=json.dumps(txn),
+                            error_code="ERR_NEGATIVE_MILES",
+                            error_message=f"Miles redeemed cannot be negative (got {miles_int})",
+                        )
+                    )
+                    continue
+
+                # Validate redemption status enum
+                if status not in VALID_REDEMPTION_STATUSES:
+                    errors.append(
+                        QuarantineRecord(
+                            source_line_num=idx,
+                            raw_payload=json.dumps(txn),
+                            error_code="ERR_INVALID_REDEMPTION_STATUS",
+                            error_message=f"Status '{status}' not recognized (expected {VALID_REDEMPTION_STATUSES})",
+                        )
+                    )
+                    continue
+
                 records.append(
                     FlattenedRedemptionRecord(
-                        txn_id=str(txn_id),
-                        member_id=str(member_id),
+                        txn_id=str(txn_id).strip(),
+                        member_id=str(member_id).strip(),
                         feed_date=feed_date,
                         txn_date=txn_date,
-                        partner=str(partner),
+                        partner=str(partner).strip(),
                         miles_redeemed=miles_int,
-                        status=str(status).upper(),
+                        status=status,
+                        source_line_num=idx,
                     )
                 )
 

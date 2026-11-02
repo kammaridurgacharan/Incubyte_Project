@@ -86,3 +86,48 @@ def test_parse_quarantines_corrupted_redemption_items():
     assert records[0].txn_id == "RX_GOOD"
     assert len(errors) == 1
     assert errors[0].error_code == "ERR_INVALID_REDEMPTION_ITEM"
+
+
+def test_parse_quarantines_negative_miles():
+    negative_miles_json = """
+    {
+      "member_id": "223457",
+      "feed_date": "20240115",
+      "redemptions": [
+        { "txn_id": "RX_NEG", "txn_date": "20240110", "partner": "AeroLink", "miles_redeemed": -5000, "status": "COMPLETED" }
+      ]
+    }
+    """
+    parser = JsonRedemptionParser()
+    records, errors = parser.parse_text(negative_miles_json)
+
+    assert len(records) == 0
+    assert len(errors) == 1
+    assert errors[0].error_code == "ERR_NEGATIVE_MILES"
+
+
+def test_parse_quarantines_invalid_status():
+    invalid_status_json = """
+    {
+      "member_id": "223457",
+      "feed_date": "20240115",
+      "redemptions": [
+        { "txn_id": "RX_STATUS", "txn_date": "20240110", "partner": "AeroLink", "miles_redeemed": 5000, "status": "UNKNOWN_STATUS" }
+      ]
+    }
+    """
+    parser = JsonRedemptionParser()
+    records, errors = parser.parse_text(invalid_status_json)
+
+    assert len(records) == 0
+    assert len(errors) == 1
+    assert errors[0].error_code == "ERR_INVALID_REDEMPTION_STATUS"
+
+
+def test_parse_handles_malformed_syntax():
+    parser = JsonRedemptionParser()
+    records, errors = parser.parse_text("{bad_json: True,")
+
+    assert len(records) == 0
+    assert len(errors) == 1
+    assert errors[0].error_code == "ERR_INVALID_JSON_PAYLOAD"

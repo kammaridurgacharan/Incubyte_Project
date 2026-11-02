@@ -68,3 +68,4 @@ VALID_ACTIVE_FLAGS: Set[str] = {"A", "I"}
 
 # Valid Redemption Statuses in JSON Feed
 VALID_REDEMPTION_STATUSES: Set[str] = {"COMPLETED", "PENDING", "CANCELLED", "FAILED"}
+

@@ -8,7 +8,7 @@ USE SCHEMA SKYPOINTS_LAKE.ANALYTICS;
 
 -- 1. Flattened Fact Table for Redemption Transactions
 CREATE OR REPLACE TABLE FACT_REDEMPTIONS (
-    redemption_key       VARCHAR(64) NOT NULL, -- Hash or unique key
+    redemption_key       VARCHAR(64) NOT NULL,
     txn_id               VARCHAR(50) NOT NULL,
     member_id            VARCHAR(18) NOT NULL,
     feed_date            DATE NOT NULL,
@@ -34,8 +34,8 @@ INSERT INTO FACT_REDEMPTIONS (
 )
 SELECT
     MD5(CONCAT(f.value:txn_id::STRING, '|', r.payload:member_id::STRING)) AS redemption_key,
-    f.value:txn_id::STRING                                                 AS txn_id,
-    r.payload:member_id::STRING                                            AS member_id,
+    TRIM(f.value:txn_id::STRING)                                          AS txn_id,
+    TRIM(r.payload:member_id::STRING)                                     AS member_id,
     TRY_TO_DATE(r.payload:feed_date::STRING, 'YYYYMMDD')                  AS feed_date,
     TRY_TO_DATE(f.value:txn_date::STRING, 'YYYYMMDD')                     AS txn_date,
     TRIM(f.value:partner::STRING)                                          AS partner_name,
@@ -43,10 +43,11 @@ SELECT
     UPPER(TRIM(f.value:status::STRING))                                    AS txn_status
 FROM SKYPOINTS_LAKE.RAW.RAW_REDEMPTIONS r,
 LATERAL FLATTEN(input => r.payload:redemptions) f
-WHERE f.value:txn_id IS NOT NULL;
+WHERE f.value:txn_id IS NOT NULL
+  AND f.value:miles_redeemed::NUMBER >= 0;
 
 -- 3. Analytical Joins: Joining Redemptions back to Member Profiles
--- Query A: Comprehensive 360-Degree Member Loyalty Summary
+-- View A: Comprehensive 360-Degree Member Loyalty Summary View
 CREATE OR REPLACE VIEW V_MEMBER_REDEMPTION_SUMMARY AS
 SELECT
     m.member_id,
@@ -55,7 +56,7 @@ SELECT
     m.standardized_country,
     m.age,
     m.stale_member,
-    m.last_flight_date,
+    m.flight_date AS last_flight_date,
     COUNT(r.txn_id)                                         AS total_transactions,
     COALESCE(SUM(r.miles_redeemed), 0)                      AS total_miles_redeemed,
     COALESCE(SUM(CASE WHEN r.txn_status = 'COMPLETED' 
@@ -69,7 +70,8 @@ LEFT JOIN FACT_REDEMPTIONS r
     ON m.member_id = r.member_id
 GROUP BY ALL;
 
--- Query B: Cross-Join to Specific Country Table (e.g. Table_India)
+-- View B: Cross-Join to Specific Country Table (e.g. Table_India) for Active Partner Audits
+CREATE OR REPLACE VIEW V_INDIA_ACTIVE_REDEMPTIONS AS
 SELECT
     ind.member_id,
     ind.member_name,
@@ -83,5 +85,4 @@ SELECT
 FROM SKYPOINTS_LAKE.TARGETS.TABLE_INDIA ind
 INNER JOIN FACT_REDEMPTIONS r
     ON ind.member_id = r.member_id
-WHERE r.txn_status = 'COMPLETED'
-ORDER BY r.txn_date DESC;
+WHERE r.txn_status = 'COMPLETED';

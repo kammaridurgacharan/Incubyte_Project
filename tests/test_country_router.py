@@ -98,3 +98,4 @@ def test_older_record_does_not_overwrite_newer_country():
     # Canadian record was newer (Jan 20 > Jan 10), so Canadian record must remain
     assert len(router.get_table("Table_Canada")) == 1
     assert len(router.get_table("Table_India")) == 0
+

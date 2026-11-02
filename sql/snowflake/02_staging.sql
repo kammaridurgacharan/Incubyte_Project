@@ -6,6 +6,9 @@
 CREATE SCHEMA IF NOT EXISTS SKYPOINTS_LAKE.STAGING;
 USE SCHEMA SKYPOINTS_LAKE.STAGING;
 
+-- Benchmark As-Of Date parameter for reproducible batch backfills (can be set per run)
+SET AS_OF_DATE = '2024-01-15'::DATE;
+
 -- 1. Staging Table DDL with Typed Columns & Audit Attributes
 CREATE OR REPLACE TABLE STAGING_MEMBERS (
     staging_id              NUMBER AUTOINCREMENT START 1 INCREMENT 1,
@@ -26,7 +29,8 @@ CREATE OR REPLACE TABLE STAGING_MEMBERS (
     stale_member            BOOLEAN,
     days_since_last_flight  NUMBER,
     
-    -- Pipeline Audit Trail
+    -- Pipeline Lineage
+    batch_id                VARCHAR(50),
     source_file             VARCHAR(255),
     source_row_num          NUMBER,
     processed_at            TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP()
@@ -102,17 +106,17 @@ standardized AS (
         -- Accurate age derivation accounting for leap years and birth month/day
         CASE 
             WHEN clean_dob IS NOT NULL THEN
-                DATEDIFF(year, clean_dob, CURRENT_DATE()) - 
-                IFF(DATEADD(year, DATEDIFF(year, clean_dob, CURRENT_DATE()), clean_dob) > CURRENT_DATE(), 1, 0)
+                DATEDIFF(year, clean_dob, $AS_OF_DATE) - 
+                IFF(DATEADD(year, DATEDIFF(year, clean_dob, $AS_OF_DATE), clean_dob) > $AS_OF_DATE, 1, 0)
             ELSE NULL 
         END AS computed_age,
-        -- Stale Member Flag: days since last flight > 90
+        -- Stale Member Flag: days since last flight > 90 relative to batch benchmark date
         CASE
             WHEN clean_flight_date IS NULL THEN TRUE
-            WHEN DATEDIFF(day, clean_flight_date, CURRENT_DATE()) > 90 THEN TRUE
+            WHEN DATEDIFF(day, clean_flight_date, $AS_OF_DATE) > 90 THEN TRUE
             ELSE FALSE
         END AS is_stale_member,
-        DATEDIFF(day, clean_flight_date, CURRENT_DATE()) AS days_elapsed,
+        DATEDIFF(day, clean_flight_date, $AS_OF_DATE) AS days_elapsed,
         file_name,
         file_row_number
     FROM parsed_source

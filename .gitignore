@@ -44,3 +44,4 @@ htmlcov/
 *.duckdb.wal
 output/
 quarantine/
+

@@ -7,10 +7,8 @@ Usage:
 
 from datetime import date
 from pathlib import Path
-import sys
 
 from src.skypoints.config import DEFAULT_AS_OF_DATE
-from src.skypoints.models import RawMemberRecord
 from src.skypoints.pipeline import SkyPointsPipeline
 
 
@@ -47,18 +45,21 @@ def main() -> None:
     result = pipeline.run(
         flat_file_path=sample_flat_file,
         json_file_path=sample_json_file,
+        batch_id="batch_day1_sample",
+        reset_state=True,
     )
 
-    print(f"\nIngestion Metrics:")
+    print("\nIngestion Metrics:")
+    print(f"  - Active Batch ID            : {result.batch_id}")
     print(f"  - Raw Records Ingested       : {result.raw_records_count}")
     print(f"  - Staged Valid Members       : {result.staged_records_count}")
     print(f"  - Quarantined Records        : {result.quarantined_count}")
     print(f"  - Flattened Redemptions      : {result.redemptions_count}")
 
     print("\n[STAGING TABLE PREVIEW: Derived Age and Stale_Member Flag (>90 days)]")
-    staging_fmt = "{:<8} {:<10} {:<10} {:<10} {:<5} {:<6} {:<10} {:<4} {:<6} {:<12}"
+    staging_fmt = "{:<8} {:<10} {:<10} {:<10} {:<5} {:<6} {:<12} {:<4} {:<6} {:<12}"
     print(staging_fmt.format("Name", "Mem_Id", "Enroll_Dt", "Flight_Dt", "Tier", "State", "Country", "Age", "Stale?", "Days_Elapsed"))
-    print("-" * 88)
+    print("-" * 90)
     for s in result.staged_records:
         print(
             staging_fmt.format(
@@ -133,7 +134,8 @@ def main() -> None:
     print_sub_banner("5. Demonstration of 'Latest Record Wins' with Member Relocation")
     print("Scenario: Elena moves from USA to India (Flight 2024-01-15), Ravi moves from India to Canada (Flight 2024-01-14)")
     relocation_file = str(data_dir / "multi_day_relocation.dat")
-    relo_result = pipeline.run(flat_file_path=relocation_file)
+    # Feed the relocation batch into existing pipeline state
+    relo_result = pipeline.run(flat_file_path=relocation_file, batch_id="batch_day2_relocation", reset_state=False)
 
     print("\nState of Country Tables After Relocation Feed:")
     for tbl_name in ["Table_USA", "Table_India", "Table_Canada"]:
@@ -146,20 +148,22 @@ def main() -> None:
     print_sub_banner("6. Data Quality Engine: Isolation of Corrupt Records (Quarantine)")
     dirty_feed = (
         "|H|Member_Name|Member_Id|Enrollment_Date|Last_Flight_Date|Tier_Code|Agent_Name|State|Country|DOB|Is_Active\n"
-        "|D||999001|20200101|20230101|GLD|Sam|CA|USA|01011990|A\n"             # Missing Member_Name
-        "|D|FutureFlier|999002|20230101|20200101|GLD|Sam|CA|USA|01011990|A\n"     # Flight before Enrollment
-        "|D|BabyTraveler|999003|20200101|20230101|GLD|Sam|CA|USA|01012025|A\n"   # Born in 2025 (after enrollment)
-        "|D|BadTier|999004|20200101|20230101|DIAMOND|Sam|CA|USA|01011990|A\n"     # Unrecognized Tier
-        "|D|ShortLine|999005\n"                                                    # Truncated delimiter line
+        "|D||999001|20200101|20230101|GLD|Sam|CA|USA|01011990|A\n"             # Missing Member_Name (Line 2)
+        "|D|FutureFlier|999002|20230101|20200101|GLD|Sam|CA|USA|01011990|A\n"     # Flight before Enrollment (Line 3)
+        "|D|BabyTraveler|999003|20200101|20230101|GLD|Sam|CA|USA|01012025|A\n"   # Born in 2025 (after enrollment) (Line 4)
+        "|D|BadTier|999004|20200101|20230101|DIAMOND|Sam|CA|USA|01011990|A\n"     # Unrecognized Tier (Line 5)
+        "|D|ShortLine|999005\n"                                                    # Truncated delimiter line (Line 6)
     )
 
-    dq_result = pipeline.run(flat_file_text=dirty_feed)
+    # Run dirty feed with a fresh quarantine test
+    dq_pipeline = SkyPointsPipeline(as_of_date=DEFAULT_AS_OF_DATE)
+    dq_result = dq_pipeline.run(flat_file_text=dirty_feed, batch_id="batch_dirty_test", reset_state=True)
     print(f"Injected 5 intentional data corruptions. Quarantined: {dq_result.quarantined_count} records.\n")
-    q_fmt = "{:<28} {:<45}"
-    print(q_fmt.format("Error Code", "Error Message"))
-    print("-" * 75)
+    q_fmt = "{:<6} {:<28} {:<45}"
+    print(q_fmt.format("Line", "Error Code", "Error Message"))
+    print("-" * 80)
     for q in dq_result.quarantined_records:
-        print(q_fmt.format(q.error_code, q.error_message[:44]))
+        print(q_fmt.format(q.source_line_num, q.error_code, q.error_message[:44]))
 
     print_banner("Live Demonstration Complete - All 6 Deliverables Verified Successfully!")
 

@@ -1,8 +1,13 @@
 """Data models and schemas for SkyPoints loyalty pipeline."""
 
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from typing import Any, Dict, List, Optional
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
+
+
+def utc_now() -> datetime:
+    """Returns current UTC timestamp in a timezone-aware format."""
+    return datetime.now(timezone.utc)
 
 
 class RawMemberRecord(BaseModel):
@@ -37,7 +42,9 @@ class StagingMemberRecord(BaseModel):
     age: Optional[int] = None
     stale_member: bool = False
     days_since_last_flight: Optional[int] = None
-    processed_at: datetime = Field(default_factory=datetime.utcnow)
+    source_line_num: int = 0
+    batch_id: Optional[str] = None
+    processed_at: datetime = Field(default_factory=utc_now)
 
 
 class FlattenedRedemptionRecord(BaseModel):
@@ -49,13 +56,14 @@ class FlattenedRedemptionRecord(BaseModel):
     partner: str
     miles_redeemed: int
     status: str
-    processed_at: datetime = Field(default_factory=datetime.utcnow)
+    source_line_num: int = 0
+    processed_at: datetime = Field(default_factory=utc_now)
 
 
 class QuarantineRecord(BaseModel):
     """Record that failed schema, mandatory, or integrity validations."""
-    source_line_num: int
+    source_line_num: int = 0
     raw_payload: str
     error_code: str
     error_message: str
-    quarantined_at: datetime = Field(default_factory=datetime.utcnow)
+    quarantined_at: datetime = Field(default_factory=utc_now)

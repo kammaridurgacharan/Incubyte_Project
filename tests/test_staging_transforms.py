@@ -99,3 +99,4 @@ def test_transform_raw_to_staging_record():
     assert staging_rec.age == 38
     assert staging_rec.stale_member is True
     assert staging_rec.standardized_country == "USA"
+

@@ -18,11 +18,13 @@ CREATE OR REPLACE TABLE TABLE_INDIA (
     tier_code               VARCHAR(5),
     agent_name              VARCHAR(255),
     state_code              VARCHAR(5),
-    country_code            VARCHAR(10) DEFAULT 'IND',
+    raw_country_code        VARCHAR(10) DEFAULT 'IND',
+    standardized_country    VARCHAR(50) DEFAULT 'India',
     dob                     DATE,
     is_active               VARCHAR(1) DEFAULT 'A',
     age                     NUMBER(3, 0),
     stale_member            BOOLEAN,
+    days_since_last_flight  NUMBER,
     last_updated_at         TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP(),
     PRIMARY KEY (member_id)
 )
@@ -37,11 +39,13 @@ CREATE OR REPLACE TABLE TABLE_USA (
     tier_code               VARCHAR(5),
     agent_name              VARCHAR(255),
     state_code              VARCHAR(5),
-    country_code            VARCHAR(10) DEFAULT 'USA',
+    raw_country_code        VARCHAR(10) DEFAULT 'USA',
+    standardized_country    VARCHAR(50) DEFAULT 'USA',
     dob                     DATE,
     is_active               VARCHAR(1) DEFAULT 'A',
     age                     NUMBER(3, 0),
     stale_member            BOOLEAN,
+    days_since_last_flight  NUMBER,
     last_updated_at         TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP(),
     PRIMARY KEY (member_id)
 )
@@ -56,11 +60,13 @@ CREATE OR REPLACE TABLE TABLE_CANADA (
     tier_code               VARCHAR(5),
     agent_name              VARCHAR(255),
     state_code              VARCHAR(5),
-    country_code            VARCHAR(10) DEFAULT 'CAN',
+    raw_country_code        VARCHAR(10) DEFAULT 'CAN',
+    standardized_country    VARCHAR(50) DEFAULT 'Canada',
     dob                     DATE,
     is_active               VARCHAR(1) DEFAULT 'A',
     age                     NUMBER(3, 0),
     stale_member            BOOLEAN,
+    days_since_last_flight  NUMBER,
     last_updated_at         TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP(),
     PRIMARY KEY (member_id)
 )
@@ -75,11 +81,13 @@ CREATE OR REPLACE TABLE TABLE_AUSTRALIA (
     tier_code               VARCHAR(5),
     agent_name              VARCHAR(255),
     state_code              VARCHAR(5),
-    country_code            VARCHAR(10) DEFAULT 'AUS',
+    raw_country_code        VARCHAR(10) DEFAULT 'AUS',
+    standardized_country    VARCHAR(50) DEFAULT 'Australia',
     dob                     DATE,
     is_active               VARCHAR(1) DEFAULT 'A',
     age                     NUMBER(3, 0),
     stale_member            BOOLEAN,
+    days_since_last_flight  NUMBER,
     last_updated_at         TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP(),
     PRIMARY KEY (member_id)
 )
@@ -94,11 +102,13 @@ CREATE OR REPLACE TABLE TABLE_PHILIPPINES (
     tier_code               VARCHAR(5),
     agent_name              VARCHAR(255),
     state_code              VARCHAR(5),
-    country_code            VARCHAR(10) DEFAULT 'PHL',
+    raw_country_code        VARCHAR(10) DEFAULT 'PHL',
+    standardized_country    VARCHAR(50) DEFAULT 'Philippines',
     dob                     DATE,
     is_active               VARCHAR(1) DEFAULT 'A',
     age                     NUMBER(3, 0),
     stale_member            BOOLEAN,
+    days_since_last_flight  NUMBER,
     last_updated_at         TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP(),
     PRIMARY KEY (member_id)
 )
@@ -116,20 +126,30 @@ CREATE OR REPLACE TABLE DIM_MEMBERS (
     tier_code               VARCHAR(5),
     agent_name              VARCHAR(255),
     state_code              VARCHAR(5),
-    country_code            VARCHAR(10) NOT NULL,
+    raw_country_code        VARCHAR(10) NOT NULL,
     standardized_country    VARCHAR(50) NOT NULL,
     dob                     DATE,
     is_active               VARCHAR(1) DEFAULT 'A',
     age                     NUMBER(3, 0),
     stale_member            BOOLEAN,
+    days_since_last_flight  NUMBER,
     last_updated_at         TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP(),
     PRIMARY KEY (member_id)
 )
 CLUSTER BY (standardized_country, member_id);
 
--- Zero-overhead views on top of clustered dimension:
+-- Zero-overhead views on top of clustered dimension for all target countries:
 CREATE OR REPLACE VIEW VIEW_TABLE_INDIA AS
 SELECT * FROM DIM_MEMBERS WHERE standardized_country = 'India';
 
 CREATE OR REPLACE VIEW VIEW_TABLE_USA AS
 SELECT * FROM DIM_MEMBERS WHERE standardized_country = 'USA';
+
+CREATE OR REPLACE VIEW VIEW_TABLE_CANADA AS
+SELECT * FROM DIM_MEMBERS WHERE standardized_country = 'Canada';
+
+CREATE OR REPLACE VIEW VIEW_TABLE_AUSTRALIA AS
+SELECT * FROM DIM_MEMBERS WHERE standardized_country = 'Australia';
+
+CREATE OR REPLACE VIEW VIEW_TABLE_PHILIPPINES AS
+SELECT * FROM DIM_MEMBERS WHERE standardized_country = 'Philippines';

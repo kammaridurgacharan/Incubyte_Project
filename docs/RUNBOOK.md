@@ -1,19 +1,19 @@
 # SkyPoints Live Demonstration Runbook & Interview Guide
 
-This guide walks through running the live demonstration for Incubyte technical interviewers, explaining the key architecture points and answering common follow-up questions.
+This guide walks through running the live demonstration for technical interviewers, explaining key architecture points and answering common follow-up questions.
 
 ---
 
 ## 1. Quick Start Commands
 
 ### A. Run Full Test Suite (TDD Verification)
-```powershell
-python -m pytest
+```bash
+python -m pytest -v
 ```
-*Expected Result*: 26 passed tests covering unit, property, and end-to-end integration scenarios.
+*Expected Result*: 33 passed tests covering unit, edge-case, and end-to-end integration scenarios in under 2 seconds.
 
 ### B. Run Interactive Live Demonstration
-```powershell
+```bash
 python demo.py
 ```
 *Executes*:
@@ -22,7 +22,7 @@ python demo.py
 3. Semi-structured JSON flattening (`FACT_REDEMPTIONS`).
 4. Analytical join view (Member Profile $\leftrightarrow$ Redemption Fact).
 5. "Latest Record Wins" relocation reconciliation across multiple days.
-6. Dead-letter quarantine of corrupt sample records.
+6. Dead-letter quarantine of corrupt sample records with exact source line numbers.
 
 ---
 
@@ -38,7 +38,7 @@ python demo.py
 
 ### Topic 2: Scaling to Billions of Records Daily
 * **Distributed Micro-Partitioning**:
-  * Instead of looping in Python, ingestion uses cloud-native bulk COPY into Snowflake / Lakehouse.
+  * Ingestion uses cloud-native bulk COPY into Snowflake / Lakehouse.
   * Flat files arrive compressed in $100\text{MB}$ chunks (`.dat.gz`) to maximize read parallelism across compute nodes.
 * **Idempotency & Replayability**:
   * Pipeline runs use deterministic date watermarks (`as_of_date`).
@@ -55,6 +55,5 @@ python demo.py
 
 ### Topic 3: Handling Cross-Country Relocations
 * When member `223457` relocates from USA to India:
-  * The pipeline executes an atomic cross-table reconciliation: upserting into `Table_India` and purging/deactivating from `Table_USA`.
+  * The pipeline executes an atomic cross-table reconciliation: upserting into `Table_India` and purging from `Table_USA`.
   * Verified in `tests/test_country_router.py` and demonstrated in `demo.py`.
-

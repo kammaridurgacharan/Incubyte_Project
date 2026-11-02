@@ -67,3 +67,4 @@ CREATE OR REPLACE TABLE QUARANTINE_MEMBERS (
     raw_payload          VARCHAR(2000),
     quarantine_timestamp TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP()
 );
+

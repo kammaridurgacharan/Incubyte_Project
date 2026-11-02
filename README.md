@@ -10,7 +10,7 @@ This repository delivers a production-grade data engineering pipeline for **SkyP
 1. **Member Profile Feed**: High-volume pipe-delimited flat files (`|H|...` and `|D|...`).
 2. **Mileage Redemption Feed**: Semi-structured JSON arrays capturing partner airline redemptions.
 
-The solution satisfies all 6 assessment deliverables, solves the anomalies in the sample data, and provides both **cloud-native Snowflake DDL/SQL** and a **zero-dependency, runnable local pipeline with DuckDB** for live interview demonstrations.
+The solution satisfies all 6 assessment deliverables, resolves the discrepancies and anomalies in the sample data, and provides both **cloud-native Snowflake DDL/SQL** and a **runnable local pipeline with DuckDB** for live interview demonstrations.
 
 ---
 
@@ -18,12 +18,12 @@ The solution satisfies all 6 assessment deliverables, solves the anomalies in th
 
 | Deliverable | Requirement | Location in Codebase |
 | :--- | :--- | :--- |
-| **Deliverable 1** | Table queries (DDL) for Raw landing, Staging, and Country target tables in Snowflake. | [`sql/snowflake/01_raw_landing.sql`](file:///c:/Users/kamma/repos/Incubyte_Project/sql/snowflake/01_raw_landing.sql)<br>[`sql/snowflake/02_staging.sql`](file:///c:/Users/kamma/repos/Incubyte_Project/sql/snowflake/02_staging.sql)<br>[`sql/snowflake/03_country_targets.sql`](file:///c:/Users/kamma/repos/Incubyte_Project/sql/snowflake/03_country_targets.sql) |
-| **Deliverable 2** | Load Staging table with derived columns: `Age` (from DOB) and `Stale_Member` flag (`days since Flight_Date > 90`). | [`src/skypoints/transforms/staging.py`](file:///c:/Users/kamma/repos/Incubyte_Project/src/skypoints/transforms/staging.py)<br>[`sql/snowflake/02_staging.sql`](file:///c:/Users/kamma/repos/Incubyte_Project/sql/snowflake/02_staging.sql) |
-| **Deliverable 3** | Transformation logic to split members into per-country target tables with the "latest record wins" rule for relocations. | [`src/skypoints/transforms/country_router.py`](file:///c:/Users/kamma/repos/Incubyte_Project/src/skypoints/transforms/country_router.py)<br>[`sql/snowflake/05_merge_transforms.sql`](file:///c:/Users/kamma/repos/Incubyte_Project/sql/snowflake/05_merge_transforms.sql) |
-| **Deliverable 4** | Parse semi-structured JSON redemption feed into a flattened table and join back to member profile data. | [`src/skypoints/ingestion/json_parser.py`](file:///c:/Users/kamma/repos/Incubyte_Project/src/skypoints/ingestion/json_parser.py)<br>[`sql/snowflake/04_redemptions.sql`](file:///c:/Users/kamma/repos/Incubyte_Project/sql/snowflake/04_redemptions.sql) |
-| **Deliverable 5** | Data validations: mandatory fields, key uniqueness, chronological checks, and catching sample anomalies. | [`src/skypoints/quality/validators.py`](file:///c:/Users/kamma/repos/Incubyte_Project/src/skypoints/quality/validators.py)<br>[`tests/test_validators.py`](file:///c:/Users/kamma/repos/Incubyte_Project/tests/test_validators.py) |
-| **Deliverable 6** | Interactive live demonstration ready for technical interview pairing. | [`demo.py`](file:///c:/Users/kamma/repos/Incubyte_Project/demo.py)<br>[`docs/RUNBOOK.md`](file:///c:/Users/kamma/repos/Incubyte_Project/docs/RUNBOOK.md) |
+| **Deliverable 1** | Table queries (DDL) for Raw landing, Staging, and Country target tables in Snowflake. | [`sql/snowflake/01_raw_landing.sql`](sql/snowflake/01_raw_landing.sql)<br>[`sql/snowflake/02_staging.sql`](sql/snowflake/02_staging.sql)<br>[`sql/snowflake/03_country_targets.sql`](sql/snowflake/03_country_targets.sql) |
+| **Deliverable 2** | Load Staging table with derived columns: `Age` (from DOB) and `Stale_Member` flag (`days since Flight_Date > 90`). | [`src/skypoints/transforms/staging.py`](src/skypoints/transforms/staging.py)<br>[`sql/snowflake/02_staging.sql`](sql/snowflake/02_staging.sql) |
+| **Deliverable 3** | Transformation logic to split members into per-country target tables with the "latest record wins" rule for relocations. | [`src/skypoints/transforms/country_router.py`](src/skypoints/transforms/country_router.py)<br>[`sql/snowflake/05_merge_transforms.sql`](sql/snowflake/05_merge_transforms.sql) |
+| **Deliverable 4** | Parse semi-structured JSON redemption feed into a flattened table and join back to member profile data. | [`src/skypoints/ingestion/json_parser.py`](src/skypoints/ingestion/json_parser.py)<br>[`sql/snowflake/04_redemptions.sql`](sql/snowflake/04_redemptions.sql) |
+| **Deliverable 5** | Data validations: mandatory fields, key uniqueness, chronological checks, and catching sample anomalies. | [`src/skypoints/quality/validators.py`](src/skypoints/quality/validators.py)<br>[`tests/test_validators.py`](tests/test_validators.py) |
+| **Deliverable 6** | Interactive live demonstration ready for technical interview pairing. | [`demo.py`](demo.py)<br>[`docs/RUNBOOK.md`](docs/RUNBOOK.md) |
 
 ---
 
@@ -31,7 +31,7 @@ The solution satisfies all 6 assessment deliverables, solves the anomalies in th
 
 The pipeline was engineered around the constraint: *"Create the process considering we are getting billions of records every day."*
 
-Detailed architectural analysis is documented in [`docs/SYSTEM_DESIGN.md`](file:///c:/Users/kamma/repos/Incubyte_Project/docs/SYSTEM_DESIGN.md). Key design pillars include:
+Detailed architectural analysis is documented in [`docs/SYSTEM_DESIGN.md`](docs/SYSTEM_DESIGN.md) and [`docs/ARCHITECTURE_DECISIONS_AND_DATA_STRATEGY.md`](docs/ARCHITECTURE_DECISIONS_AND_DATA_STRATEGY.md). Key design pillars include:
 
 1. **Chunked, Splittable Object Storage**:
    * Daily feeds arrive pre-partitioned in $100\text{MB}$ compressed blocks (`part-*.dat.gz` and `part-*.json.gz`).
@@ -41,10 +41,10 @@ Detailed architectural analysis is documented in [`docs/SYSTEM_DESIGN.md`](file:
 3. **Idempotent "Latest Record Wins" Relocation**:
    * Window function deduplication:
      $$\text{ROW\_NUMBER}() \text{ OVER (PARTITION BY member\_id ORDER BY flight\_date DESC, processed\_at DESC)} = 1$$
-   * Cross-table reconciliation: When a member moves from USA to India, they are inserted into `Table_India` and deleted/deactivated in `Table_USA` atomically.
+   * Cross-table reconciliation: When a member moves from USA to India, they are upserted into `Table_India` and deleted/deactivated in `Table_USA` atomically.
    * Scalable Alternative: A unified `DIM_MEMBERS` dimension clustered by `(Country, Member_Id)` with zero-maintenance country views.
 4. **Dead-Letter Quarantine**:
-   * Corrupt lines never crash the pipeline; they are isolated into `QUARANTINE_RECORDS` with explicit diagnostic error codes (`ERR_MANDATORY_NULL`, `ERR_CHRONOLOGY_VIOLATION`, `ERR_INVALID_TIER`).
+   * Corrupt lines never crash the pipeline; they are isolated into `QUARANTINE_RECORDS` with explicit diagnostic error codes (`ERR_MANDATORY_NULL`, `ERR_CHRONOLOGY_VIOLATION`, `ERR_INVALID_TIER`) and source file line numbers preserved.
 
 ---
 
@@ -53,7 +53,7 @@ Detailed architectural analysis is documented in [`docs/SYSTEM_DESIGN.md`](file:
 | Identified Anomaly | Root Cause & Real-World Impact | Pipeline Resolution |
 | :--- | :--- | :--- |
 | **Spec Table vs File Header Drift** | Spec listed `Post Code` at position 9. Actual file header and rows omit `Post Code` and place `DOB` at position 9. | Parser validates header signatures dynamically by column name, preventing field misalignment. |
-| **Key Column Misconfiguration** | Spec marked `Member Name` as Key Column (Y) and `Member ID` as non-key (N). | In airline loyalty systems, names are not unique. The pipeline enforces `Member_Id` as the primary key and validates against duplicate ID identity theft. |
+| **Key Column Misconfiguration** | Spec marked `Member Name` as Key Column (Y) and `Member ID` as non-key (N). | In airline loyalty systems, names are not unique. The pipeline enforces `Member_Id` as the primary key and validates against duplicate ID identity conflicts. |
 | **DOB Leading Zero Truncation** | Sample flat file shows `03051985`, but Staging table preview showed `3051985`. | Integer casting drops the leading `0` (corrupting March `03` into `3`). Parser preserves string representation and applies `LPAD(dob, 8, '0')`. |
 | **Country Code Inconsistency** | Mix of Alpha-3 (`USA`, `IND`, `CAN`), Alpha-2 (`AU`), and non-standard (`PHIL`). | ISO standardization dictionary normalizes all variations before routing to target tables (`Table_Australia`, `Table_Philippines`). |
 | **Chronological Validity** | Flight before enrollment, or DOB after enrollment. | Quarantine validator isolates chronological paradoxes into the dead-letter queue. |
@@ -63,11 +63,15 @@ Detailed architectural analysis is documented in [`docs/SYSTEM_DESIGN.md`](file:
 ## 5. Getting Started & Live Demonstration
 
 ### Quick Setup
-```powershell
+```bash
 # Clone the repository and navigate into it
-cd c:\Users\kamma\repos\Incubyte_Project
+git clone <repo-url>
+cd Incubyte_Project
 
-# Run all Test-Driven Development (TDD) test suites
+# Install development dependencies
+pip install -e ".[dev]"
+
+# Run all 33 automated test suites (TDD verification)
 python -m pytest
 
 # Run the interactive live interview demonstration
@@ -81,7 +85,7 @@ Running `python demo.py` demonstrates:
 3. **Flattened JSON Redemptions**: Exploding nested redemptions into `FACT_REDEMPTIONS`.
 4. **360-Degree Analytical Join**: Calculating completed miles, pending miles, and transaction counts per member.
 5. **Live Relocation Reconciliation**: Moving Elena from USA to India and demonstrating automatic purge from `Table_USA`.
-6. **Data Quality Quarantine**: Intercepting and quarantining corrupted test records.
+6. **Data Quality Quarantine**: Intercepting and quarantining corrupted test records with exact source line numbers.
 
 ---
 
@@ -112,7 +116,7 @@ Incubyte_Project/
 │       ├── ingestion/              # Delimiter & semi-structured JSON parsers
 │       ├── transforms/             # Staging derivations & country router with relocation
 │       └── quality/                # Schema constraints & dead-letter quarantine engine
-├── tests/                          # 26 comprehensive pytest unit and integration tests
+├── tests/                          # 33 comprehensive pytest unit and integration tests
 └── data/                           # Real problem sample fixtures & relocation test data
 ```
 
@@ -120,7 +124,7 @@ Incubyte_Project/
 
 ## 7. Git Commit History (Evolution of Solution)
 
-Following Incubyte's emphasis on software craftsmanship and incremental design, the Git history records each phase of evolution:
+The Git history records each phase of TDD evolution:
 * `chore`: Project scaffolding, configuration, and data fixtures.
 * `docs`: System design for billions-scale architecture and data dictionary.
 * `sql`: Snowflake DDL for raw landing, staging, targets, and redemptions.
@@ -131,4 +135,4 @@ Following Incubyte's emphasis on software craftsmanship and incremental design, 
 * `feat(quality)`: Data quality engine with key uniqueness and dead-letter quarantine.
 * `feat(pipeline)`: End-to-end pipeline orchestrator with DuckDB analytical queries.
 * `feat(demo)`: Interactive live demonstration CLI runner (`demo.py`) and interview runbook.
-
+* `refactor`: Audit remediation, line number provenance, negative miles checks, and production SQL alignment.

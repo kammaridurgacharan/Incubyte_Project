@@ -2,7 +2,9 @@
 
 from dataclasses import dataclass, field
 from datetime import date
+import re
 from typing import Any, Dict, List, Optional
+import uuid
 import duckdb
 
 from src.skypoints.config import DEFAULT_AS_OF_DATE
@@ -22,6 +24,7 @@ from src.skypoints.transforms.staging import StagingTransformer
 @dataclass
 class PipelineExecutionResult:
     """Encapsulates the output artifacts of an end-to-end pipeline run."""
+    batch_id: str = ""
     raw_records_count: int = 0
     staged_records_count: int = 0
     quarantined_count: int = 0
@@ -46,6 +49,12 @@ class SkyPointsPipeline:
         self.db = duckdb.connect(database=":memory:")
         self._init_duckdb_schema()
 
+    def reset(self) -> None:
+        """Resets database tables and in-memory router state for a fresh execution."""
+        self.router.reset()
+        for tbl in ["RAW_MEMBERS", "STAGING_MEMBERS", "FACT_REDEMPTIONS", "QUARANTINE_RECORDS"]:
+            self.db.execute(f"DELETE FROM {tbl};")
+
     def _init_duckdb_schema(self) -> None:
         """Initializes relational tables in local DuckDB to match Snowflake DDL."""
         self.db.execute("""
@@ -59,7 +68,8 @@ class SkyPointsPipeline:
                 state_code VARCHAR,
                 country_code VARCHAR,
                 dob VARCHAR,
-                is_active VARCHAR
+                is_active VARCHAR,
+                batch_id VARCHAR
             );
         """)
         self.db.execute("""
@@ -77,7 +87,8 @@ class SkyPointsPipeline:
                 is_active VARCHAR,
                 age INTEGER,
                 stale_member BOOLEAN,
-                days_since_last_flight INTEGER
+                days_since_last_flight INTEGER,
+                batch_id VARCHAR
             );
         """)
         self.db.execute("""
@@ -88,7 +99,8 @@ class SkyPointsPipeline:
                 txn_date DATE,
                 partner VARCHAR,
                 miles_redeemed INTEGER,
-                status VARCHAR
+                status VARCHAR,
+                batch_id VARCHAR
             );
         """)
         self.db.execute("""
@@ -96,7 +108,8 @@ class SkyPointsPipeline:
                 source_line_num INTEGER,
                 error_code VARCHAR,
                 error_message VARCHAR,
-                raw_payload VARCHAR
+                raw_payload VARCHAR,
+                batch_id VARCHAR
             );
         """)
 
@@ -106,8 +119,14 @@ class SkyPointsPipeline:
         flat_file_text: Optional[str] = None,
         json_file_path: Optional[str] = None,
         json_file_text: Optional[str] = None,
+        batch_id: Optional[str] = None,
+        reset_state: bool = False,
     ) -> PipelineExecutionResult:
         """Executes the complete ETL, validation, and country routing pipeline."""
+        if reset_state:
+            self.reset()
+
+        active_batch_id = batch_id or f"batch_{uuid.uuid4().hex[:8]}"
         all_quarantine: List[QuarantineRecord] = []
 
         # 1. Ingestion: Member Profile Flat File
@@ -135,6 +154,7 @@ class SkyPointsPipeline:
             if transform_err:
                 all_quarantine.append(transform_err)
             elif staged:
+                staged.batch_id = active_batch_id
                 staged_candidates.append(staged)
 
         # 4. Data Quality Validation (Mandatory checks, Key Uniqueness, Chronology)
@@ -145,7 +165,13 @@ class SkyPointsPipeline:
         self.router.process_batch(valid_staged_records)
 
         # 6. Load into DuckDB Tables
-        self._populate_duckdb(raw_records, valid_staged_records, redemption_records, all_quarantine)
+        self._populate_duckdb(
+            raw_records,
+            valid_staged_records,
+            redemption_records,
+            all_quarantine,
+            active_batch_id,
+        )
 
         # 7. Execute Analytical SQL Join (Member Profile <-> Redemptions)
         summary_query = """
@@ -176,6 +202,7 @@ class SkyPointsPipeline:
         summary_rows = [dict(zip(columns, row)) for row in cursor.fetchall()]
 
         return PipelineExecutionResult(
+            batch_id=active_batch_id,
             raw_records_count=len(raw_records),
             staged_records_count=len(valid_staged_records),
             quarantined_count=len(all_quarantine),
@@ -193,12 +220,13 @@ class SkyPointsPipeline:
         staged_records: List[StagingMemberRecord],
         redemptions: List[FlattenedRedemptionRecord],
         quarantine: List[QuarantineRecord],
+        batch_id: str,
     ) -> None:
         """Loads processed entities into DuckDB tables for SQL querying."""
         # Insert raw members
         for r in raw_records:
             self.db.execute(
-                """INSERT INTO RAW_MEMBERS VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                """INSERT INTO RAW_MEMBERS VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 [
                     r.member_name,
                     r.member_id,
@@ -210,13 +238,14 @@ class SkyPointsPipeline:
                     r.country_code_raw,
                     r.dob_raw,
                     r.is_active_raw,
+                    batch_id,
                 ],
             )
 
         # Insert staged members
         for s in staged_records:
             self.db.execute(
-                """INSERT INTO STAGING_MEMBERS VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                """INSERT INTO STAGING_MEMBERS VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 [
                     s.member_id,
                     s.member_name,
@@ -232,13 +261,14 @@ class SkyPointsPipeline:
                     s.age,
                     s.stale_member,
                     s.days_since_last_flight,
+                    batch_id,
                 ],
             )
 
         # Insert redemptions
         for red in redemptions:
             self.db.execute(
-                """INSERT INTO FACT_REDEMPTIONS VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                """INSERT INTO FACT_REDEMPTIONS VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
                 [
                     red.txn_id,
                     red.member_id,
@@ -247,23 +277,30 @@ class SkyPointsPipeline:
                     red.partner,
                     red.miles_redeemed,
                     red.status,
+                    batch_id,
                 ],
             )
 
         # Insert quarantine records
         for q in quarantine:
             self.db.execute(
-                """INSERT INTO QUARANTINE_RECORDS VALUES (?, ?, ?, ?)""",
-                [q.source_line_num, q.error_code, q.error_message, q.raw_payload],
+                """INSERT INTO QUARANTINE_RECORDS VALUES (?, ?, ?, ?, ?)""",
+                [q.source_line_num, q.error_code, q.error_message, q.raw_payload, batch_id],
             )
 
-        # Populate per-country tables in DuckDB
+        # Populate per-country tables in DuckDB (sanitizing table names)
         for table_name, records in self.router.all_tables().items():
-            self.db.execute(f"CREATE TABLE IF NOT EXISTS {table_name} AS SELECT * FROM STAGING_MEMBERS WHERE 1=0;")
-            self.db.execute(f"DELETE FROM {table_name};")
+            clean_tbl = re.sub(r"[^A-Za-z0-9_]", "", table_name)
+            if not clean_tbl:
+                continue
+
+            self.db.execute(
+                f"CREATE TABLE IF NOT EXISTS {clean_tbl} AS SELECT * FROM STAGING_MEMBERS WHERE 1=0;"
+            )
+            self.db.execute(f"DELETE FROM {clean_tbl};")
             for rec in records:
                 self.db.execute(
-                    f"""INSERT INTO {table_name} VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    f"""INSERT INTO {clean_tbl} VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                     [
                         rec.member_id,
                         rec.member_name,
@@ -279,5 +316,6 @@ class SkyPointsPipeline:
                         rec.age,
                         rec.stale_member,
                         rec.days_since_last_flight,
+                        batch_id,
                     ],
                 )

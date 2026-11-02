@@ -17,19 +17,23 @@ class StagingTransformer:
         self.as_of_date: date = as_of_date or DEFAULT_AS_OF_DATE
 
     def parse_date(self, date_str: Optional[str], is_dob: bool = False) -> Optional[date]:
-        """Parses date string with leading zero preservation and multi-format support."""
+        """Parses date string with leading zero preservation and multi-format support.
+        
+        DOB Interpretation:
+        In US/global airline passenger data (like the sample), DOB '03051985' represents March 5, 1985 (MMDDYYYY).
+        When leading zeroes are dropped by upstream numeric conversion (e.g. '3051985'), LPAD restores '03051985'.
+        Fallback orders: MMDDYYYY -> YYYYMMDD -> DDMMYYYY.
+        """
         if not date_str or not str(date_str).strip():
             return None
 
         clean_str = str(date_str).strip()
 
         if is_dob:
-            # Handle dropped leading zero (e.g., '3051985' -> '03051985')
+            # Restore dropped leading zero (e.g., '3051985' -> '03051985')
             if len(clean_str) == 7:
                 clean_str = "0" + clean_str
 
-            # Attempt MMDDYYYY (standard American format in airline sample: 03/05/1985)
-            # and fallback to YYYYMMDD or DDMMYYYY
             for fmt in ("%m%d%Y", "%Y%m%d", "%d%m%Y"):
                 try:
                     return datetime.strptime(clean_str, fmt).date()
@@ -62,14 +66,13 @@ class StagingTransformer:
 
     def standardize_country(self, country_code: Optional[str]) -> str:
         """Maps diverse country string representations (AU, PHIL, IND, USA) to standard names."""
-        if not country_code:
+        if not country_code or not str(country_code).strip():
             return "UNKNOWN"
-        code_upper = country_code.strip().upper()
+        code_upper = str(country_code).strip().upper()
         table_name = COUNTRY_TABLE_MAPPING.get(code_upper)
         if table_name:
-            # Strip 'Table_' prefix to yield clean canonical country name
             return table_name.replace("Table_", "")
-        return code_upper.capitalize()
+        return code_upper
 
     def transform(
         self, raw: RawMemberRecord
@@ -113,5 +116,6 @@ class StagingTransformer:
             age=age,
             stale_member=is_stale,
             days_since_last_flight=days_elapsed,
+            source_line_num=raw.source_line_num,
         )
         return staging_rec, None
