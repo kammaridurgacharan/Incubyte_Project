@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass, field
 from datetime import date
+from pathlib import Path
 import re
 from typing import Any, Dict, List, Optional
 import uuid
@@ -319,3 +320,33 @@ class SkyPointsPipeline:
                         batch_id,
                     ],
                 )
+
+    def export_country_tables(self, output_dir: str = "output") -> Dict[str, str]:
+        """Exports all country-specific target tables to CSV files (e.g. IND.csv, USA.csv, AUS.csv)."""
+        out_path = Path(output_dir)
+        out_path.mkdir(parents=True, exist_ok=True)
+        exported: Dict[str, str] = {}
+
+        # Standard file name shortcuts matching typical regional outputs
+        file_aliases = {
+            "Table_India": "IND.csv",
+            "Table_USA": "USA.csv",
+            "Table_Australia": "AUS.csv",
+            "Table_Canada": "CAN.csv",
+            "Table_Philippines": "PHL.csv",
+        }
+
+        for table_name in self.router.all_tables().keys():
+            clean_tbl = re.sub(r"[^A-Za-z0-9_]", "", table_name)
+            if not clean_tbl:
+                continue
+
+            target_filename = file_aliases.get(clean_tbl, f"{clean_tbl}.csv")
+            target_filepath = out_path / target_filename
+            self.db.execute(
+                f"COPY {clean_tbl} TO '{target_filepath.as_posix()}' (HEADER, DELIMITER ',');"
+            )
+            exported[clean_tbl] = str(target_filepath)
+
+        return exported
+

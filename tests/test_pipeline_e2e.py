@@ -80,3 +80,26 @@ def test_pipeline_member_relocation_across_batches():
     assert "Elena" not in usa_members
     assert "Ravi" in canada_members
     assert "Ravi" not in india_members
+
+
+def test_pipeline_exports_country_csvs(tmp_path):
+    flat_file = str(DATA_DIR / "sample_members.dat")
+    pipeline = SkyPointsPipeline(as_of_date=date(2024, 1, 15))
+    pipeline.run(flat_file_path=flat_file)
+
+    exported = pipeline.export_country_tables(output_dir=str(tmp_path / "exports"))
+    assert "Table_India" in exported
+    assert "Table_USA" in exported
+    assert "Table_Australia" in exported
+
+    ind_file = tmp_path / "exports" / "IND.csv"
+    usa_file = tmp_path / "exports" / "USA.csv"
+    aus_file = tmp_path / "exports" / "AUS.csv"
+
+    assert ind_file.exists()
+    assert usa_file.exists()
+    assert aus_file.exists()
+    assert "Ravi" in ind_file.read_text(encoding="utf-8")
+    assert "Elena" in usa_file.read_text(encoding="utf-8")
+    assert "Jacob" in aus_file.read_text(encoding="utf-8")
+

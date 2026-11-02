@@ -96,3 +96,4 @@ At $1\text{B}$ records/day ($\approx 150\text{--}250\text{ GB}$ compressed/day):
 * `partner` (VARCHAR) — Partner airline or service name.
 * `miles_redeemed` (INTEGER) — Positive mileage amount.
 * `status` (VARCHAR) — `COMPLETED`, `PENDING`, `CANCELLED`, `FAILED`.
+
