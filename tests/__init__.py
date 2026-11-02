@@ -1,1 +1,2 @@
 """SkyPoints Test Suite."""
+
