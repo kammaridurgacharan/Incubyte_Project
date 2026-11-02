@@ -87,6 +87,14 @@ def main() -> None:
             print(f"      * Member ID: {r.member_id:<8} | Name: {r.member_name:<8} | Tier: {r.tier_code} | Age: {r.age} | State: {r.state_code}")
 
     # -------------------------------------------------------------------------
+    # STAGE 2b: EXPORT REGIONAL COUNTRY FILES (IND.csv, USA.csv, AUS.csv)
+    # -------------------------------------------------------------------------
+    print_sub_banner("2b. Exporting Regional Files (IND.csv, USA.csv, AUS.csv)")
+    exported_files = pipeline.export_country_tables(output_dir="output")
+    for tbl, path in sorted(exported_files.items()):
+        print(f"  - {tbl:<18} -> {path}")
+
+    # -------------------------------------------------------------------------
     # STAGE 3: SEMI-STRUCTURED JSON FLATTENING
     # -------------------------------------------------------------------------
     print_sub_banner("3. Flattened Semi-Structured JSON Redemptions (FACT_REDEMPTIONS)")
