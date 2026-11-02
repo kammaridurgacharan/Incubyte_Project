@@ -1,6 +1,6 @@
 -- ============================================================================
 -- SkyPoints Loyalty Platform: Semi-Structured JSON Redemption Flattening & Joins
--- Deliverable 4: Flatten redemptions JSON array and join to Member Profiles
+-- Flattens redemptions JSON array and joins to Member Profiles
 -- ============================================================================
 
 CREATE SCHEMA IF NOT EXISTS SKYPOINTS_LAKE.ANALYTICS;

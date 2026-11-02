@@ -1,6 +1,6 @@
 -- ============================================================================
 -- SkyPoints Loyalty Platform: Staging Layer DDL & Derived Transformations
--- Deliverable 2: Compute Age from DOB and Stale_Member flag (>90 days)
+-- Computes Age from DOB and Stale_Member flag (>90 days since last flight)
 -- ============================================================================
 
 CREATE SCHEMA IF NOT EXISTS SKYPOINTS_LAKE.STAGING;

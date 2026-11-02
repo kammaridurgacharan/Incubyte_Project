@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "skypoints-pipeline"
 version = "1.0.0"
-description = "SkyPoints Airline Loyalty ETL & Quality Pipeline for Incubyte Technical Assessment"
+description = "SkyPoints Global Airline Loyalty Data Engineering Platform"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [

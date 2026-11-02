@@ -1,6 +1,8 @@
-"""Interactive live demonstration CLI for SkyPoints Loyalty Data Platform.
+"""SkyPoints Global Loyalty Data Pipeline - Live Demonstration.
 
-Designed for Incubyte Technical Assessment interview live coding & system walkthrough.
+Executes end-to-end ingestion, staging derivations, quality quarantine,
+country routing, JSON flattening, and member loyalty summary analytics.
+
 Usage:
     python demo.py
 """
@@ -26,7 +28,6 @@ def print_sub_banner(title: str) -> None:
 
 def main() -> None:
     print_banner("SkyPoints Global Airline Loyalty Data Engineering Platform")
-    print("Incubyte Technical Assessment Live Demonstration")
     print(f"Pipeline Reference As-Of Date: {DEFAULT_AS_OF_DATE}")
 
     data_dir = Path(__file__).parent / "data"
@@ -134,7 +135,6 @@ def main() -> None:
     print_sub_banner("5. Demonstration of 'Latest Record Wins' with Member Relocation")
     print("Scenario: Elena moves from USA to India (Flight 2024-01-15), Ravi moves from India to Canada (Flight 2024-01-14)")
     relocation_file = str(data_dir / "multi_day_relocation.dat")
-    # Feed the relocation batch into existing pipeline state
     relo_result = pipeline.run(flat_file_path=relocation_file, batch_id="batch_day2_relocation", reset_state=False)
 
     print("\nState of Country Tables After Relocation Feed:")
@@ -155,7 +155,6 @@ def main() -> None:
         "|D|ShortLine|999005\n"                                                    # Truncated delimiter line (Line 6)
     )
 
-    # Run dirty feed with a fresh quarantine test
     dq_pipeline = SkyPointsPipeline(as_of_date=DEFAULT_AS_OF_DATE)
     dq_result = dq_pipeline.run(flat_file_text=dirty_feed, batch_id="batch_dirty_test", reset_state=True)
     print(f"Injected 5 intentional data corruptions. Quarantined: {dq_result.quarantined_count} records.\n")
@@ -165,7 +164,7 @@ def main() -> None:
     for q in dq_result.quarantined_records:
         print(q_fmt.format(q.source_line_num, q.error_code, q.error_message[:44]))
 
-    print_banner("Live Demonstration Complete - All 6 Deliverables Verified Successfully!")
+    print_banner("SkyPoints Pipeline Execution Completed Successfully")
 
 
 if __name__ == "__main__":

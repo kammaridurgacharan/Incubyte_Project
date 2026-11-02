@@ -1,6 +1,6 @@
 -- ============================================================================
 -- SkyPoints Loyalty Platform: Country-Specific Target Tables DDL
--- Deliverable 1: Target tables for India, USA, Canada, Australia, Philippines
+-- Target tables for India, USA, Canada, Australia, Philippines
 -- ============================================================================
 
 CREATE SCHEMA IF NOT EXISTS SKYPOINTS_LAKE.TARGETS;

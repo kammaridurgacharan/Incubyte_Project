@@ -1,6 +1,6 @@
 -- ============================================================================
 -- SkyPoints Loyalty Platform: Country Routing & Latest-Record-Wins Relocation
--- Deliverable 3: Route members to Table_<Country> handling member relocation
+-- Routes members to Table_<Country> handling cross-border member relocation
 -- ============================================================================
 
 USE SCHEMA SKYPOINTS_LAKE.TARGETS;
